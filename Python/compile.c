@@ -2365,7 +2365,7 @@ compiler_check_debug_args(struct compiler *c, arguments_ty args)
 }
 
 static int
-compiler_function(struct compiler *c, stmt_ty s, int is_async)
+compiler_function(struct compiler *c, stmt_ty s)
 {
     PyCodeObject *co;
     PyObject *qualname, *docstring = NULL;
@@ -2379,9 +2379,8 @@ compiler_function(struct compiler *c, stmt_ty s, int is_async)
     int scope_type;
     int firstlineno;
 
-    if (is_async) {
-        assert(s->kind == AsyncFunctionDef_kind);
-
+    switch (s->kind) {
+    case AsyncFunctionDef_kind:
         args = s->v.AsyncFunctionDef.args;
         returns = s->v.AsyncFunctionDef.returns;
         decos = s->v.AsyncFunctionDef.decorator_list;
@@ -2389,9 +2388,8 @@ compiler_function(struct compiler *c, stmt_ty s, int is_async)
         body = s->v.AsyncFunctionDef.body;
 
         scope_type = COMPILER_SCOPE_ASYNC_FUNCTION;
-    } else {
-        assert(s->kind == FunctionDef_kind);
-
+        break;
+    case FunctionDef_kind:
         args = s->v.FunctionDef.args;
         returns = s->v.FunctionDef.returns;
         decos = s->v.FunctionDef.decorator_list;
@@ -2399,6 +2397,9 @@ compiler_function(struct compiler *c, stmt_ty s, int is_async)
         body = s->v.FunctionDef.body;
 
         scope_type = COMPILER_SCOPE_FUNCTION;
+        break;
+    default:
+        Py_UNREACHABLE();
     }
 
     if (!compiler_check_debug_args(c, args))
@@ -3571,8 +3572,9 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
     SET_LOC(c, s);
 
     switch (s->kind) {
+    case AsyncFunctionDef_kind:
     case FunctionDef_kind:
-        return compiler_function(c, s, 0);
+        return compiler_function(c, s);
     case ClassDef_kind:
         return compiler_class(c, s);
     case Return_kind:
@@ -3637,8 +3639,6 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_continue(c);
     case With_kind:
         return compiler_with(c, s, 0);
-    case AsyncFunctionDef_kind:
-        return compiler_function(c, s, 1);
     case AsyncWith_kind:
         return compiler_async_with(c, s, 0);
     case AsyncFor_kind:
