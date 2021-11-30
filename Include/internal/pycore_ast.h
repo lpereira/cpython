@@ -192,16 +192,7 @@ struct _stmt {
             asdl_expr_seq *decorator_list;
             expr_ty returns;
             string type_comment;
-        } FunctionDef;
-
-        struct {
-            identifier name;
-            arguments_ty args;
-            asdl_stmt_seq *body;
-            asdl_expr_seq *decorator_list;
-            expr_ty returns;
-            string type_comment;
-        } AsyncFunctionDef;
+        } FunctionDef, AsyncFunctionDef;
 
         struct {
             identifier name;
