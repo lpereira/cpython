@@ -993,6 +993,7 @@ stack_effect(int opcode, int oparg, int jump)
 {
     switch (opcode) {
         case NOP:
+        case START_FUNCTION:
         case EXTENDED_ARG:
             return 0;
 
@@ -2438,6 +2439,8 @@ compiler_function(struct compiler *c, stmt_ty s)
         compiler_exit_scope(c);
         return 0;
     }
+
+    ADDOP(c, START_FUNCTION);
 
     c->u->u_argcount = asdl_seq_LEN(args->args);
     c->u->u_posonlyargcount = asdl_seq_LEN(args->posonlyargs);

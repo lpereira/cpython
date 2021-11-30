@@ -1771,6 +1771,10 @@ check_eval_breaker:
             DISPATCH();
         }
 
+        TARGET(START_FUNCTION) {
+            DISPATCH();
+        }
+
         TARGET(LOAD_CLOSURE) {
             /* We keep LOAD_CLOSURE so that the bytecode stays more readable. */
             PyObject *value = GETLOCAL(oparg);
