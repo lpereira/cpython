@@ -1826,6 +1826,10 @@ check_eval_breaker:
             DISPATCH();
         }
 
+        TARGET(START_FUNCTION) {
+            DISPATCH();
+        }
+
         TARGET(LOAD_CLOSURE) {
             /* We keep LOAD_CLOSURE so that the bytecode stays more readable. */
             PyObject *value = GETLOCAL(oparg);
@@ -2314,6 +2318,7 @@ check_eval_breaker:
             new_frame->previous = frame;
             frame = cframe.current_frame = new_frame;
             new_frame->depth = frame->depth + 1;
+            /* FIXME(lpereira): We're not tracing anymore by jumping to this label. */
             goto start_frame;
         }
 
@@ -4672,6 +4677,7 @@ check_eval_breaker:
                     new_frame->previous = frame;
                     cframe.current_frame = frame = new_frame;
                     new_frame->depth = frame->depth + 1;
+                    /* FIXME(lpereira): We're not tracing anymore by jumping to this label. */
                     goto start_frame;
                 }
             }
@@ -4761,6 +4767,7 @@ check_eval_breaker:
             new_frame->previous = frame;
             frame = cframe.current_frame = new_frame;
             new_frame->depth = frame->depth + 1;
+            /* FIXME(lpereira): We're not tracing anymore by jumping to this label. */
             goto start_frame;
         }
 
