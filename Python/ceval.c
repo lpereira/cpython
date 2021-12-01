@@ -1608,7 +1608,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, InterpreterFrame *frame, int thr
     int oparg;         /* Current opcode argument, if any */
     PyObject *retval = NULL;            /* Return value */
     _Py_atomic_int * const eval_breaker = &tstate->interp->ceval.eval_breaker;
-
+    PyCodeObject *co = NULL;
     CFrame cframe;
 
     /* WARNING: Because the CFrame lives on the C stack,
@@ -1633,27 +1633,6 @@ start_frame:
 
     assert(tstate->cframe == &cframe);
     assert(frame == cframe.current_frame);
-
-    if (cframe.use_tracing) {
-        if (trace_function_entry(tstate, frame)) {
-            goto exit_eval_frame;
-        }
-    }
-
-    if (PyDTrace_FUNCTION_ENTRY_ENABLED())
-        dtrace_function_entry(frame);
-
-    PyCodeObject *co = frame->f_code;
-    /* Increment the warmup counter and quicken if warm enough
-     * _Py_Quicken is idempotent so we don't worry about overflow */
-    if (!PyCodeObject_IsWarmedUp(co)) {
-        PyCodeObject_IncrementWarmup(co);
-        if (PyCodeObject_IsWarmedUp(co)) {
-            if (_Py_Quicken(co)) {
-                goto exit_eval_frame;
-            }
-        }
-    }
 
 resume_frame:
     co = frame->f_code;
@@ -1772,6 +1751,27 @@ check_eval_breaker:
         }
 
         TARGET(START_FUNCTION) {
+            if (cframe.use_tracing) {
+                if (trace_function_entry(tstate, frame)) {
+                    goto exit_eval_frame;
+                }
+            }
+
+            if (PyDTrace_FUNCTION_ENTRY_ENABLED())
+                dtrace_function_entry(frame);
+
+            co = frame->f_code;
+            /* Increment the warmup counter and quicken if warm enough
+             * _Py_Quicken is idempotent so we don't worry about overflow */
+            if (!PyCodeObject_IsWarmedUp(co)) {
+                PyCodeObject_IncrementWarmup(co);
+                if (PyCodeObject_IsWarmedUp(co)) {
+                    if (_Py_Quicken(co)) {
+                        goto exit_eval_frame;
+                    }
+                }
+            }
+
             DISPATCH();
         }
 
