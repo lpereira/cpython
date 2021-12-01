@@ -129,6 +129,7 @@ _Py_GetSpecializationStats(void) {
     err += add_stat_dict(stats, STORE_ATTR, "store_attr");
     err += add_stat_dict(stats, CALL_FUNCTION, "call_function");
     err += add_stat_dict(stats, BINARY_OP, "binary_op");
+    err += add_stat_dict(stats, START_FUNCTION, "start_function");
     if (err < 0) {
         Py_DECREF(stats);
         return NULL;
@@ -187,6 +188,7 @@ _Py_PrintSpecializationStats(void)
     print_stats(out, &_specialization_stats[STORE_ATTR], "store_attr");
     print_stats(out, &_specialization_stats[CALL_FUNCTION], "call_function");
     print_stats(out, &_specialization_stats[BINARY_OP], "binary_op");
+    print_stats(out, &_specialization_stats[START_FUNCTION], "start_function");
     if (out != stderr) {
         fclose(out);
     }
@@ -230,7 +232,7 @@ get_cache_count(SpecializedCacheOrInstruction *quickened) {
 
 /* Map from opcode to adaptive opcode.
   Values of zero are ignored. */
-static uint8_t adaptive_opcodes[256] = {
+static const uint8_t adaptive_opcodes[256] = {
     [LOAD_ATTR] = LOAD_ATTR_ADAPTIVE,
     [LOAD_GLOBAL] = LOAD_GLOBAL_ADAPTIVE,
     [LOAD_METHOD] = LOAD_METHOD_ADAPTIVE,
@@ -239,10 +241,11 @@ static uint8_t adaptive_opcodes[256] = {
     [CALL_FUNCTION] = CALL_FUNCTION_ADAPTIVE,
     [STORE_ATTR] = STORE_ATTR_ADAPTIVE,
     [BINARY_OP] = BINARY_OP_ADAPTIVE,
+    [START_FUNCTION] = NOP,
 };
 
 /* The number of cache entries required for a "family" of instructions. */
-static uint8_t cache_requirements[256] = {
+static const uint8_t cache_requirements[256] = {
     [LOAD_ATTR] = 2, /* _PyAdaptiveEntry and _PyAttrCache */
     [LOAD_GLOBAL] = 2, /* _PyAdaptiveEntry and _PyLoadGlobalCache */
     [LOAD_METHOD] = 3, /* _PyAdaptiveEntry, _PyAttrCache and _PyObjectCache */
@@ -250,7 +253,8 @@ static uint8_t cache_requirements[256] = {
     [STORE_SUBSCR] = 0,
     [CALL_FUNCTION] = 2, /* _PyAdaptiveEntry and _PyObjectCache/_PyCallCache */
     [STORE_ATTR] = 2, /* _PyAdaptiveEntry and _PyAttrCache */
-    [BINARY_OP] = 1,  // _PyAdaptiveEntry
+    [BINARY_OP] = 1,  /* _PyAdaptiveEntry */
+    [START_FUNCTION] = 0,
 };
 
 /* Return the oparg for the cache_offset and instruction index.
