@@ -1668,7 +1668,6 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, InterpreterFrame *frame, int thr
     int opcode;        /* Current opcode */
     int oparg;         /* Current opcode argument, if any */
     _Py_atomic_int * const eval_breaker = &tstate->interp->ceval.eval_breaker;
-
     CFrame cframe;
 
     /* WARNING: Because the CFrame lives on the C stack,
@@ -1734,12 +1733,6 @@ start_frame:
     assert(tstate->cframe == &cframe);
     assert(frame == cframe.current_frame);
 
-    TRACE_FUNCTION_ENTRY();
-    DTRACE_FUNCTION_ENTRY();
-
-    if (_Py_IncrementCountAndMaybeQuicken(frame->f_code) < 0) {
-        goto exit_unwind;
-    }
     frame->f_state = FRAME_EXECUTING;
 
 resume_frame:
@@ -1827,6 +1820,13 @@ check_eval_breaker:
         }
 
         TARGET(START_FUNCTION) {
+            TRACE_FUNCTION_ENTRY();
+            DTRACE_FUNCTION_ENTRY();
+
+            if (_Py_IncrementCountAndMaybeQuicken(frame->f_code) < 0) {
+                goto exit_unwind;
+            }
+
             DISPATCH();
         }
 
