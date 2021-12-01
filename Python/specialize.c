@@ -131,6 +131,7 @@ _Py_GetSpecializationStats(void) {
     err += add_stat_dict(stats, BINARY_OP, "binary_op");
     err += add_stat_dict(stats, COMPARE_OP, "compare_op");
     err += add_stat_dict(stats, START_FUNCTION, "start_function");
+    err += add_stat_dict(stats, RETURN_VALUE, "return_value");
     if (err < 0) {
         Py_DECREF(stats);
         return NULL;
@@ -191,6 +192,7 @@ _Py_PrintSpecializationStats(void)
     print_stats(out, &_specialization_stats[BINARY_OP], "binary_op");
     print_stats(out, &_specialization_stats[COMPARE_OP], "compare_op");
     print_stats(out, &_specialization_stats[START_FUNCTION], "start_function");
+    print_stats(out, &_specialization_stats[RETURN_VALUE], "return_value");
     if (out != stderr) {
         fclose(out);
     }
@@ -258,7 +260,6 @@ static const uint8_t cache_requirements[256] = {
     [STORE_ATTR] = 2, /* _PyAdaptiveEntry and _PyAttrCache */
     [COMPARE_OP] = 1, /* _PyAdaptiveEntry */
     [BINARY_OP] = 1,  /* _PyAdaptiveEntry */
-    [START_FUNCTION] = 0,
 };
 
 /* Return the oparg for the cache_offset and instruction index.
@@ -362,6 +363,12 @@ optimize(SpecializedCacheOrInstruction *quickened, int len)
             /* Super instructions don't use the cache,
              * so no need to update the offset. */
             switch (opcode) {
+                case START_FUNCTION:
+                    instructions[i] = _Py_MAKECODEUNIT(NOP, 0);
+                    break;
+                case RETURN_VALUE:
+                    instructions[i] = _Py_MAKECODEUNIT(RETURN_VALUE_QUICK, oparg);
+                    break;
                 case JUMP_ABSOLUTE:
                     instructions[i] = _Py_MAKECODEUNIT(JUMP_ABSOLUTE_QUICK, oparg);
                     break;

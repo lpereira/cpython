@@ -193,7 +193,8 @@ def_op('DICT_MERGE', 164)
 def_op('DICT_UPDATE', 165)
 def_op('CALL_METHOD_KW', 166)
 
-def_op('START_FUNCTION', 167)	# Check for tracing/profiling
+def_op('START_FUNCTION', 167)     # Check for tracing/profiling
+def_op('RETURN_VALUE_QUICK', 168) # RETURN_VALUE without tracing/profiling checks
 
 del def_op, name_op, jrel_op, jabs_op
 

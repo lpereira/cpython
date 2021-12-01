@@ -113,6 +113,7 @@ extern "C" {
 #define DICT_UPDATE                     165
 #define CALL_METHOD_KW                  166
 #define START_FUNCTION                  167
+#define RETURN_VALUE_QUICK              168
 #define BINARY_OP_ADAPTIVE                7
 #define BINARY_OP_ADD_INT                 8
 #define BINARY_OP_ADD_FLOAT              13

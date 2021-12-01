@@ -1537,10 +1537,11 @@ eval_frame_handle_pending(PyThreadState *tstate)
     STAT_INC(LOAD_##attr_or_method, hit); \
     Py_INCREF(res);
 
-#define TRACE_FUNCTION_EXIT() \
+#define TRACE_FUNCTION_EXIT(return_value) \
     if (cframe.use_tracing) { \
-        if (trace_function_exit(tstate, frame, retval)) { \
-            Py_DECREF(retval); \
+        PyObject *trace_retval = (return_value); \
+        if (trace_function_exit(tstate, frame, trace_retval)) { \
+            Py_DECREF(trace_retval); \
             goto exit_unwind; \
         } \
     }
@@ -2477,13 +2478,12 @@ check_eval_breaker:
             goto error;
         }
 
-        TARGET(RETURN_VALUE) {
+        TARGET(RETURN_VALUE_QUICK)
+        return_value_without_tracing: {
             PyObject *retval = POP();
             assert(EMPTY());
             frame->f_state = FRAME_RETURNED;
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            TRACE_FUNCTION_EXIT();
-            DTRACE_FUNCTION_EXIT();
             _Py_LeaveRecursiveCall(tstate);
             if (frame->depth) {
                 frame = cframe.current_frame = pop_frame(tstate, frame);
@@ -2496,6 +2496,17 @@ check_eval_breaker:
             assert(tstate->cframe->current_frame == frame->previous);
             assert(!_PyErr_Occurred(tstate));
             return retval;
+        }
+
+        TARGET(RETURN_VALUE) {
+            frame->f_state = FRAME_RETURNED;
+            /* FIXME(lpereira): The stack pointer and f_state will be set to the same
+             * value here, and when jumping to return_value_without_tracing above. This
+             * is redundant, but saves us from copying some code. */
+            _PyFrame_SetStackPointer(frame, stack_pointer - 1);
+            TRACE_FUNCTION_EXIT(TOP());
+            DTRACE_FUNCTION_EXIT();
+            goto return_value_without_tracing;
         }
 
         TARGET(GET_AITER) {
@@ -2685,7 +2696,7 @@ check_eval_breaker:
             frame->f_lasti -= 1;
             frame->f_state = FRAME_SUSPENDED;
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            TRACE_FUNCTION_EXIT();
+            TRACE_FUNCTION_EXIT(retval);
             DTRACE_FUNCTION_EXIT();
             _Py_LeaveRecursiveCall(tstate);
             /* Restore previous cframe and return. */
@@ -2711,7 +2722,7 @@ check_eval_breaker:
             }
             frame->f_state = FRAME_SUSPENDED;
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            TRACE_FUNCTION_EXIT();
+            TRACE_FUNCTION_EXIT(retval);
             DTRACE_FUNCTION_EXIT();
             _Py_LeaveRecursiveCall(tstate);
             /* Restore previous cframe and return. */
