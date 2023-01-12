@@ -629,8 +629,33 @@ dispatch:
             pattern++;
             DISPATCH;
 
-        TARGET(SRE_OP_LITERAL):
+        TARGET(SRE_OP_LITERAL_STRING):
             /* match literal string */
+            /* <LITERAL_STRING> <literal_index> */
+            TRACE(("|%p|%p|LITERAL_STRING %d\n", pattern,
+                   ptr, pattern[0]));
+            if (ptr >= end)
+                RETURN_FAILURE;
+            PyObject *literal = PyList_GET_ITEM(state->literals, pattern[0]);
+            size_t literal_len = (size_t)PyUnicode_GET_LENGTH(literal);
+            if (literal_len > (size_t)(end - ptr))
+                RETURN_FAILURE;
+            const void *literal_data = PyUnicode_DATA(literal);
+            if (sizeof(SRE_CHAR) != PyUnicode_KIND(literal)) {
+                for (size_t i = 0; i < literal_len; i++) {
+                    if (PyUnicode_READ(sizeof(SRE_CHAR), literal_data, i) != ptr[i])
+                        RETURN_FAILURE;
+                }
+            } else {
+                if (memcmp(literal_data, ptr, literal_len * sizeof(SRE_CHAR)) != 0)
+                    RETURN_FAILURE;
+            }
+            ptr += literal_len;
+            pattern++;
+            DISPATCH;
+
+        TARGET(SRE_OP_LITERAL):
+            /* match literal character */
             /* <LITERAL> <code> */
             TRACE(("|%p|%p|LITERAL %d\n", pattern,
                    ptr, *pattern));
@@ -1637,7 +1662,6 @@ SRE(search)(SRE_STATE* state, SRE_CODE* pattern)
     Py_ssize_t prefix_skip = 0;
     SRE_CODE* prefix = NULL;
     SRE_CODE* charset = NULL;
-    SRE_CODE* overlap = NULL;
     int flags = 0;
 
     if (ptr > end)
@@ -1663,12 +1687,7 @@ SRE(search)(SRE_STATE* state, SRE_CODE* pattern)
         }
 
         if (flags & SRE_INFO_PREFIX) {
-            /* pattern starts with a known prefix */
-            /* <length> <skip> <prefix data> <overlap data> */
-            prefix_len = pattern[5];
-            prefix_skip = pattern[6];
-            prefix = pattern + 7;
-            overlap = prefix + prefix_len - 1;
+            Py_UNREACHABLE();
         } else if (flags & SRE_INFO_CHARSET)
             /* pattern starts with a character from a known set */
             /* <charset> */
@@ -1705,57 +1724,6 @@ SRE(search)(SRE_STATE* state, SRE_CODE* pattern)
                 return status;
             ++ptr;
             RESET_CAPTURE_GROUP();
-        }
-        return 0;
-    }
-
-    if (prefix_len > 1) {
-        /* pattern starts with a known prefix.  use the overlap
-           table to skip forward as fast as we possibly can */
-        Py_ssize_t i = 0;
-
-        end = (SRE_CHAR *)state->end;
-        if (prefix_len > end - ptr)
-            return 0;
-#if SIZEOF_SRE_CHAR < 4
-        for (i = 0; i < prefix_len; i++)
-            if ((SRE_CODE)(SRE_CHAR) prefix[i] != prefix[i])
-                return 0; /* literal can't match: doesn't fit in char width */
-#endif
-        while (ptr < end) {
-            SRE_CHAR c = (SRE_CHAR) prefix[0];
-            while (*ptr++ != c) {
-                if (ptr >= end)
-                    return 0;
-            }
-            if (ptr >= end)
-                return 0;
-
-            i = 1;
-            state->must_advance = 0;
-            do {
-                if (*ptr == (SRE_CHAR) prefix[i]) {
-                    if (++i != prefix_len) {
-                        if (++ptr >= end)
-                            return 0;
-                        continue;
-                    }
-                    /* found a potential match */
-                    TRACE(("|%p|%p|SEARCH SCAN\n", pattern, ptr));
-                    state->start = ptr - (prefix_len - 1);
-                    state->ptr = ptr - (prefix_len - prefix_skip - 1);
-                    if (flags & SRE_INFO_LITERAL)
-                        return 1; /* we got all of it */
-                    status = SRE(match)(state, pattern + 2*prefix_skip, 0);
-                    if (status != 0)
-                        return status;
-                    /* close but no cigar -- try again */
-                    if (++ptr >= end)
-                        return 0;
-                    RESET_CAPTURE_GROUP();
-                }
-                i = overlap[i];
-            } while (i != 0);
         }
         return 0;
     }

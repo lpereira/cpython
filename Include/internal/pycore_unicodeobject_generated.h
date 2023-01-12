@@ -892,6 +892,8 @@ _PyUnicode_InitStaticStrings(void) {
     PyUnicode_InternInPlace(&string);
     string = &_Py_ID(listcomp);
     PyUnicode_InternInPlace(&string);
+    string = &_Py_ID(literals);
+    PyUnicode_InternInPlace(&string);
     string = &_Py_ID(little);
     PyUnicode_InternInPlace(&string);
     string = &_Py_ID(lo);

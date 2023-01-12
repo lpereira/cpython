@@ -1007,6 +1007,7 @@ _PyStaticObjects_CheckRefcnt(PyInterpreterState *interp) {
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(line_buffering));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(lineno));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(listcomp));
+    _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(literals));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(little));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(lo));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(locale));

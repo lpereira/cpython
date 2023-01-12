@@ -13,7 +13,7 @@
 
 # update when constants are added or removed
 
-MAGIC = 20221023
+MAGIC = 20230110
 
 from _sre import MAXREPEAT, MAXGROUPS
 
@@ -87,6 +87,7 @@ OPCODES = _makecodes(
     'INFO',
     'JUMP',
     'LITERAL',
+    'LITERAL_STRING',
     'MARK',
     'MAX_UNTIL',
     'MIN_UNTIL',

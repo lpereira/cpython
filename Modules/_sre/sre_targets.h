@@ -11,7 +11,7 @@
  * See the sre.c file for information on usage and redistribution.
  */
 
-static void *sre_targets[43] = {
+static void *sre_targets[44] = {
     &&TARGET_SRE_OP_FAILURE,
     &&TARGET_SRE_OP_SUCCESS,
     &&TARGET_SRE_OP_ANY,
@@ -29,6 +29,7 @@ static void *sre_targets[43] = {
     &&TARGET_SRE_OP_INFO,
     &&TARGET_SRE_OP_JUMP,
     &&TARGET_SRE_OP_LITERAL,
+    &&TARGET_SRE_OP_LITERAL_STRING,
     &&TARGET_SRE_OP_MARK,
     &&TARGET_SRE_OP_MAX_UNTIL,
     &&TARGET_SRE_OP_MIN_UNTIL,

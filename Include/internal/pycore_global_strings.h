@@ -493,6 +493,7 @@ struct _Py_global_strings {
         STRUCT_FOR_ID(line_buffering)
         STRUCT_FOR_ID(lineno)
         STRUCT_FOR_ID(listcomp)
+        STRUCT_FOR_ID(literals)
         STRUCT_FOR_ID(little)
         STRUCT_FOR_ID(lo)
         STRUCT_FOR_ID(locale)

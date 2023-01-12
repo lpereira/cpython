@@ -463,6 +463,10 @@ state_init(SRE_STATE* state, PatternObject* pattern, PyObject* string,
     state->pos = start;
     state->endpos = end;
 
+    if (pattern->literals) {
+        state->literals = Py_NewRef(pattern->literals);
+    }
+
     return string;
   err:
     /* We add an explicit cast here because MSVC has a bug when
@@ -478,9 +482,13 @@ state_init(SRE_STATE* state, PatternObject* pattern, PyObject* string,
 LOCAL(void)
 state_fini(SRE_STATE* state)
 {
-    if (state->buffer.buf)
+    if (state->buffer.buf) {
         PyBuffer_Release(&state->buffer);
+    }
     Py_XDECREF(state->string);
+    if (state->literals) {
+        Py_XDECREF(state->literals);
+    }
     data_stack_dealloc(state);
     /* See above PyMem_Del for why we explicitly cast here. */
     PyMem_Free((void*) state->mark);
@@ -591,6 +599,9 @@ pattern_dealloc(PatternObject* self)
     PyObject_GC_UnTrack(self);
     if (self->weakreflist != NULL) {
         PyObject_ClearWeakRefs((PyObject *) self);
+    }
+    if (self->literals) {
+        Py_DECREF(self->literals);
     }
     (void)pattern_clear(self);
     tp->tp_free(self);
@@ -1429,6 +1440,7 @@ _sre.compile
     pattern: object
     flags: int
     code: object(subclass_of='&PyList_Type')
+    literals: object(subclass_of='&PyList_Type')
     groups: Py_ssize_t
     groupindex: object(subclass_of='&PyDict_Type')
     indexgroup: object(subclass_of='&PyTuple_Type')
@@ -1437,19 +1449,19 @@ _sre.compile
 
 static PyObject *
 _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
-                  PyObject *code, Py_ssize_t groups, PyObject *groupindex,
-                  PyObject *indexgroup)
-/*[clinic end generated code: output=ef9c2b3693776404 input=0a68476dbbe5db30]*/
+                  PyObject *code, PyObject *literals, Py_ssize_t groups,
+                  PyObject *groupindex, PyObject *indexgroup)
+/*[clinic end generated code: output=958e1830f561cdf3 input=c77fc24e28cd4271]*/
 {
     /* "compile" pattern descriptor to pattern object */
 
     _sremodulestate *module_state = get_sre_module_state(module);
-    PatternObject* self;
-    Py_ssize_t i, n;
+    PatternObject *self;
+    Py_ssize_t i, code_n;
 
-    n = PyList_GET_SIZE(code);
+    code_n = PyList_GET_SIZE(code);
     /* coverity[ampersand_in_size] */
-    self = PyObject_GC_NewVar(PatternObject, module_state->Pattern_Type, n);
+    self = PyObject_GC_NewVar(PatternObject, module_state->Pattern_Type, code_n);
     if (!self)
         return NULL;
     self->weakreflist = NULL;
@@ -1457,9 +1469,15 @@ _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
     self->groupindex = NULL;
     self->indexgroup = NULL;
 
-    self->codesize = n;
+    self->codesize = code_n;
 
-    for (i = 0; i < n; i++) {
+    if (PyList_Size(literals) == 0) {
+        self->literals = NULL;
+    } else {
+        self->literals = Py_NewRef(literals);
+    }
+
+    for (i = 0; i < code_n; i++) {
         PyObject *o = PyList_GET_ITEM(code, i);
         unsigned long value = PyLong_AsUnsignedLong(o);
         self->code[i] = (SRE_CODE) value;
@@ -1472,8 +1490,7 @@ _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
     PyObject_GC_Track(self);
 
     if (PyErr_Occurred()) {
-        Py_DECREF(self);
-        return NULL;
+        goto error;
     }
 
     if (pattern == Py_None) {
@@ -1486,8 +1503,7 @@ _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
         view.buf = NULL;
         if (!getstring(pattern, &p_length, &self->isbytes,
                        &charsize, &view)) {
-            Py_DECREF(self);
-            return NULL;
+            goto error;
         }
         if (view.buf)
             PyBuffer_Release(&view);
@@ -1507,11 +1523,16 @@ _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
     }
 
     if (!_validate(self)) {
-        Py_DECREF(self);
-        return NULL;
+        goto error;
     }
 
     return (PyObject*) self;
+
+error:
+    if (self->literals)
+        Py_DECREF(self->literals);
+    Py_DECREF(self);
+    return NULL;
 }
 
 /*[clinic input]
@@ -1729,7 +1750,7 @@ _validate_charset(SRE_CODE *code, SRE_CODE *end)
 
 /* Returns 0 on success, -1 on failure, and 1 if the last op is JUMP. */
 static int
-_validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
+_validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups, PyObject *literals)
 {
     /* Some variables are manipulated by the macros above */
     SRE_CODE op;
@@ -1752,6 +1773,18 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
             GET_ARG;
             if (arg > 2 * (size_t)groups + 1) {
                 VTRACE(("arg=%d, groups=%d\n", (int)arg, (int)groups));
+                FAIL;
+            }
+            break;
+
+        case SRE_OP_LITERAL_STRING:
+            if (!literals) {
+                VTRACE(("literals array is NULL\n"));
+                FAIL;
+            }
+            GET_ARG;
+            if (arg < 0 || arg > PyList_Size(literals)) {
+                VTRACE(("arg=%d, len(literals)=%d\n", (int)arg, (int)PyList_Size(literals)));
                 FAIL;
             }
             break;
@@ -1818,7 +1851,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                    <INFO> <1=skip> <2=flags> <3=min> <4=max>;
                    If SRE_INFO_PREFIX or SRE_INFO_CHARSET is in the flags,
                    more follows. */
-                SRE_CODE flags, i;
+                SRE_CODE flags;
                 SRE_CODE *newcode;
                 GET_SKIP;
                 newcode = code+skip-1;
@@ -1840,22 +1873,8 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                     FAIL;
                 /* Validate the prefix */
                 if (flags & SRE_INFO_PREFIX) {
-                    SRE_CODE prefix_len;
-                    GET_ARG; prefix_len = arg;
-                    GET_ARG;
-                    /* Here comes the prefix string */
-                    if (prefix_len > (uintptr_t)(newcode - code))
-                        FAIL;
-                    code += prefix_len;
-                    /* And here comes the overlap table */
-                    if (prefix_len > (uintptr_t)(newcode - code))
-                        FAIL;
-                    /* Each overlap value should be < prefix_len */
-                    for (i = 0; i < prefix_len; i++) {
-                        if (code[i] >= prefix_len)
-                            FAIL;
-                    }
-                    code += prefix_len;
+                    Py_UNREACHABLE();
+                    FAIL;
                 }
                 /* Validate the charset */
                 if (flags & SRE_INFO_CHARSET) {
@@ -1866,7 +1885,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                     code = newcode;
                 }
                 else if (code != newcode) {
-                  VTRACE(("code=%p, newcode=%p\n", code, newcode));
+                    VTRACE(("code=%p, newcode=%p\n", code, newcode));
                     FAIL;
                 }
             }
@@ -1880,7 +1899,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                     if (skip == 0)
                         break;
                     /* Stop 2 before the end; we check the JUMP below */
-                    if (_validate_inner(code, code+skip-3, groups))
+                    if (_validate_inner(code, code+skip-3, groups, literals))
                         FAIL;
                     code += skip-3;
                     /* Check that it ends with a JUMP, and that each JUMP
@@ -1911,7 +1930,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                     FAIL;
                 if (max > SRE_MAXREPEAT)
                     FAIL;
-                if (_validate_inner(code, code+skip-4, groups))
+                if (_validate_inner(code, code+skip-4, groups, literals))
                     FAIL;
                 code += skip-4;
                 GET_OP;
@@ -1931,7 +1950,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                     FAIL;
                 if (max > SRE_MAXREPEAT)
                     FAIL;
-                if (_validate_inner(code, code+skip-3, groups))
+                if (_validate_inner(code, code+skip-3, groups, literals))
                     FAIL;
                 code += skip-3;
                 GET_OP;
@@ -1949,7 +1968,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
         case SRE_OP_ATOMIC_GROUP:
             {
                 GET_SKIP;
-                if (_validate_inner(code, code+skip-2, groups))
+                if (_validate_inner(code, code+skip-2, groups, literals))
                     FAIL;
                 code += skip-2;
                 GET_OP;
@@ -2002,12 +2021,12 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
                for a JUMP opcode preceding our skip target.
             */
             VTRACE(("then part:\n"));
-            int rc = _validate_inner(code+1, code+skip-1, groups);
+            int rc = _validate_inner(code+1, code+skip-1, groups, literals);
             if (rc == 1) {
                 VTRACE(("else part:\n"));
                 code += skip-2; /* Position after JUMP, at <skipno> */
                 GET_SKIP;
-                rc = _validate_inner(code, code+skip-1, groups);
+                rc = _validate_inner(code, code+skip-1, groups, literals);
             }
             if (rc)
                 FAIL;
@@ -2022,7 +2041,7 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
             if (arg & 0x80000000)
                 FAIL; /* Width too large */
             /* Stop 1 before the end; we check the SUCCESS below */
-            if (_validate_inner(code+1, code+skip-2, groups))
+            if (_validate_inner(code+1, code+skip-2, groups, literals))
                 FAIL;
             code += skip-2;
             GET_OP;
@@ -2047,18 +2066,18 @@ _validate_inner(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
 }
 
 static int
-_validate_outer(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups)
+_validate_outer(SRE_CODE *code, SRE_CODE *end, Py_ssize_t groups, PyObject *literals)
 {
     if (groups < 0 || (size_t)groups > SRE_MAXGROUPS ||
         code >= end || end[-1] != SRE_OP_SUCCESS)
         FAIL;
-    return _validate_inner(code, end-1, groups);
+    return _validate_inner(code, end-1, groups, literals);
 }
 
 static int
 _validate(PatternObject *self)
 {
-    if (_validate_outer(self->code, self->code+self->codesize, self->groups))
+    if (_validate_outer(self->code, self->code+self->codesize, self->groups, self->literals))
     {
         PyErr_SetString(PyExc_RuntimeError, "invalid SRE code");
         return 0;

@@ -34,6 +34,8 @@ typedef struct {
     int flags; /* flags used when compiling pattern source */
     PyObject *weakreflist; /* List of weak references */
     int isbytes; /* pattern type (1 - bytes, 0 - string, -1 - None) */
+    /* literals */
+    PyObject *literals; /* Used by SRE_OP_LITERAL_STRING */
     /* pattern code */
     Py_ssize_t codesize;
     SRE_CODE code[1];
@@ -94,6 +96,8 @@ typedef struct {
     size_t data_stack_base;
     /* current repeat context */
     SRE_REPEAT *repeat;
+    /* literals */
+    PyObject *literals;
 } SRE_STATE;
 
 typedef struct {

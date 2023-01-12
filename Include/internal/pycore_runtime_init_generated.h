@@ -999,6 +999,7 @@ extern "C" {
     INIT_ID(line_buffering), \
     INIT_ID(lineno), \
     INIT_ID(listcomp), \
+    INIT_ID(literals), \
     INIT_ID(little), \
     INIT_ID(lo), \
     INIT_ID(locale), \

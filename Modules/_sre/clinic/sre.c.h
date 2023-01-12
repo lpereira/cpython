@@ -976,7 +976,7 @@ PyDoc_STRVAR(_sre_SRE_Pattern___deepcopy____doc__,
     {"__deepcopy__", (PyCFunction)_sre_SRE_Pattern___deepcopy__, METH_O, _sre_SRE_Pattern___deepcopy____doc__},
 
 PyDoc_STRVAR(_sre_compile__doc__,
-"compile($module, /, pattern, flags, code, groups, groupindex,\n"
+"compile($module, /, pattern, flags, code, literals, groups, groupindex,\n"
 "        indexgroup)\n"
 "--\n"
 "\n");
@@ -986,8 +986,8 @@ PyDoc_STRVAR(_sre_compile__doc__,
 
 static PyObject *
 _sre_compile_impl(PyObject *module, PyObject *pattern, int flags,
-                  PyObject *code, Py_ssize_t groups, PyObject *groupindex,
-                  PyObject *indexgroup);
+                  PyObject *code, PyObject *literals, Py_ssize_t groups,
+                  PyObject *groupindex, PyObject *indexgroup);
 
 static PyObject *
 _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
@@ -995,14 +995,14 @@ _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject
     PyObject *return_value = NULL;
     #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
 
-    #define NUM_KEYWORDS 6
+    #define NUM_KEYWORDS 7
     static struct {
         PyGC_Head _this_is_not_used;
         PyObject_VAR_HEAD
         PyObject *ob_item[NUM_KEYWORDS];
     } _kwtuple = {
         .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
-        .ob_item = { &_Py_ID(pattern), &_Py_ID(flags), &_Py_ID(code), &_Py_ID(groups), &_Py_ID(groupindex), &_Py_ID(indexgroup), },
+        .ob_item = { &_Py_ID(pattern), &_Py_ID(flags), &_Py_ID(code), &_Py_ID(literals), &_Py_ID(groups), &_Py_ID(groupindex), &_Py_ID(indexgroup), },
     };
     #undef NUM_KEYWORDS
     #define KWTUPLE (&_kwtuple.ob_base.ob_base)
@@ -1011,22 +1011,23 @@ _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject
     #  define KWTUPLE NULL
     #endif  // !Py_BUILD_CORE
 
-    static const char * const _keywords[] = {"pattern", "flags", "code", "groups", "groupindex", "indexgroup", NULL};
+    static const char * const _keywords[] = {"pattern", "flags", "code", "literals", "groups", "groupindex", "indexgroup", NULL};
     static _PyArg_Parser _parser = {
         .keywords = _keywords,
         .fname = "compile",
         .kwtuple = KWTUPLE,
     };
     #undef KWTUPLE
-    PyObject *argsbuf[6];
+    PyObject *argsbuf[7];
     PyObject *pattern;
     int flags;
     PyObject *code;
+    PyObject *literals;
     Py_ssize_t groups;
     PyObject *groupindex;
     PyObject *indexgroup;
 
-    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 6, 6, 0, argsbuf);
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 7, 7, 0, argsbuf);
     if (!args) {
         goto exit;
     }
@@ -1040,9 +1041,14 @@ _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject
         goto exit;
     }
     code = args[2];
+    if (!PyList_Check(args[3])) {
+        _PyArg_BadArgument("compile", "argument 'literals'", "list", args[3]);
+        goto exit;
+    }
+    literals = args[3];
     {
         Py_ssize_t ival = -1;
-        PyObject *iobj = _PyNumber_Index(args[3]);
+        PyObject *iobj = _PyNumber_Index(args[4]);
         if (iobj != NULL) {
             ival = PyLong_AsSsize_t(iobj);
             Py_DECREF(iobj);
@@ -1052,17 +1058,17 @@ _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
         groups = ival;
     }
-    if (!PyDict_Check(args[4])) {
-        _PyArg_BadArgument("compile", "argument 'groupindex'", "dict", args[4]);
+    if (!PyDict_Check(args[5])) {
+        _PyArg_BadArgument("compile", "argument 'groupindex'", "dict", args[5]);
         goto exit;
     }
-    groupindex = args[4];
-    if (!PyTuple_Check(args[5])) {
-        _PyArg_BadArgument("compile", "argument 'indexgroup'", "tuple", args[5]);
+    groupindex = args[5];
+    if (!PyTuple_Check(args[6])) {
+        _PyArg_BadArgument("compile", "argument 'indexgroup'", "tuple", args[6]);
         goto exit;
     }
-    indexgroup = args[5];
-    return_value = _sre_compile_impl(module, pattern, flags, code, groups, groupindex, indexgroup);
+    indexgroup = args[6];
+    return_value = _sre_compile_impl(module, pattern, flags, code, literals, groups, groupindex, indexgroup);
 
 exit:
     return return_value;
@@ -1460,4 +1466,4 @@ _sre_SRE_Scanner_search(ScannerObject *self, PyTypeObject *cls, PyObject *const 
     }
     return _sre_SRE_Scanner_search_impl(self, cls);
 }
-/*[clinic end generated code: output=e3ba72156dd71572 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=20230d1bca5cbb3c input=a9049054013a1b77]*/
